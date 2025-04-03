@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use futures::future;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::command::traits::{
@@ -45,7 +44,7 @@ impl CompositeCommand {
 
     /// Выполняет команды последовательно
     async fn execute_sequential(&self) -> Result<CommandResult, CommandError> {
-        let mut result = CommandResult::new(&self.name);
+        let result = CommandResult::new(&self.name);
         let mut all_output = String::new();
 
         for command in &self.commands {

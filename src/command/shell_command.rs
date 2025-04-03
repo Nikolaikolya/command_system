@@ -99,7 +99,7 @@ impl ShellCommand {
             return Err(CommandError::ExecutionError("Пустая команда".to_string()));
         }
 
-        let mut result = CommandResult::new(&self.name);
+        let result = CommandResult::new(&self.name);
 
         let mut cmd = TokioCommand::new(&args[0]);
 
