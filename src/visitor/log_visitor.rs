@@ -1,22 +1,22 @@
 use std::fmt;
 
 use crate::command::{CompositeCommand, ShellCommand};
-use crate::CommandExecution;
 use crate::logging::{LogLevel, Logger};
 use crate::visitor::Visitor;
+use crate::CommandExecution;
 
 /// Структура для логирования команд
-pub struct LogVisitor {
+pub struct LogVisitor<'a> {
     /// Логгер для записи событий
-    logger: Box<dyn Logger>,
+    logger: &'a Box<dyn Logger>,
 
     /// Уровень логирования
     level: LogLevel,
 }
 
-impl LogVisitor {
+impl<'a> LogVisitor<'a> {
     /// Создает новый экземпляр LogVisitor
-    pub fn new(logger: Box<dyn Logger>, level: LogLevel) -> Self {
+    pub fn new(logger: &'a Box<dyn Logger>, level: LogLevel) -> Self {
         Self { logger, level }
     }
 
@@ -26,12 +26,12 @@ impl LogVisitor {
     }
 
     /// Устанавливает логгер
-    pub fn set_logger(&mut self, logger: Box<dyn Logger>) {
+    pub fn set_logger(&mut self, logger: &'a Box<dyn Logger>) {
         self.logger = logger;
     }
 }
 
-impl Visitor for LogVisitor {
+impl<'a> Visitor for LogVisitor<'a> {
     fn visit_shell_command(&mut self, command: &ShellCommand) {
         let message = format!("Команда: {}", command.name());
         self.logger.log(self.level, &message);
@@ -51,7 +51,7 @@ impl Visitor for LogVisitor {
     }
 }
 
-impl fmt::Debug for LogVisitor {
+impl<'a> fmt::Debug for LogVisitor<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("LogVisitor")
             .field("level", &self.level)

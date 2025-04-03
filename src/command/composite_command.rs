@@ -84,7 +84,7 @@ impl CompositeCommand {
 
     /// Выполняет команды параллельно
     async fn execute_parallel(&self) -> Result<CommandResult, CommandError> {
-        let mut result = CommandResult::new(&self.name);
+        let result = CommandResult::new(&self.name);
 
         let futures = self
             .commands
@@ -146,7 +146,7 @@ impl CompositeCommand {
 
     /// Выполняет откат команд в обратном порядке
     async fn rollback_commands(&self) -> Result<CommandResult, CommandError> {
-        let mut result = CommandResult::new(&format!("{}_rollback", self.name));
+        let result = CommandResult::new(&format!("{}_rollback", self.name));
         let mut all_output = String::new();
 
         // Откатываем команды в обратном порядке

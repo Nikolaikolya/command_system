@@ -104,21 +104,16 @@ impl CommandResult {
 
 impl fmt::Display for CommandResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let unknown_error = String::from("<неизвестная ошибка>");
+        let no_output = "<нет вывода>";
+
         write!(
             f,
-            "{} ({}): {}",
-            self.command_name,
+            "{}",
             if self.success {
-                "успех"
+                self.output.lines().next().unwrap_or(no_output)
             } else {
-                "ошибка"
-            },
-            if self.success {
-                self.output.lines().next().unwrap_or("<нет вывода>")
-            } else {
-                self.error
-                    .as_ref()
-                    .unwrap_or(&String::from("<неизвестная ошибка>"))
+                self.error.as_ref().unwrap_or(&unknown_error)
             }
         )
     }

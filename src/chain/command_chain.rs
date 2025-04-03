@@ -2,10 +2,10 @@ use futures::future;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::command::{Command, CommandExecution, CommandResult, ExecutionMode};
 use crate::command::traits::CommandError;
+use crate::command::{Command, CommandResult, ExecutionMode};
 use crate::logging::{LogLevel, Logger};
-use crate::visitor::{LogVisitor, Visitor};
+use crate::visitor::LogVisitor;
 
 /// Режим выполнения цепочки команд
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,7 +74,7 @@ impl CommandChain {
 
         // Создаем визитор для логирования, если логгер установлен
         if let Some(logger) = &self.logger {
-            let mut visitor = LogVisitor::new(Box::new(logger.clone()), LogLevel::Debug);
+            let mut visitor = LogVisitor::new(logger, LogLevel::Debug);
 
             // Применяем визитор к команде
             command.accept(&mut visitor);
