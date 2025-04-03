@@ -1,6 +1,7 @@
 use crate::chain::{ChainExecutionMode, CommandChain};
 use crate::command::Command;
 use crate::logging::Logger;
+use std::sync::Arc;
 
 /// Строитель для цепочки команд (паттерн Строитель)
 pub struct ChainBuilder {
@@ -8,21 +9,21 @@ pub struct ChainBuilder {
     name: String,
 
     /// Режим выполнения
-    mode: ChainExecutionMode,
+    execution_mode: ChainExecutionMode,
 
     /// Логгер для записи событий
-    logger: Option<Box<dyn Logger>>,
+    logger: Option<Arc<Box<dyn Logger>>>,
 
     /// Откатывать ли выполненные команды в случае ошибки
     rollback_on_error: bool,
 }
 
 impl ChainBuilder {
-    /// Создает новый строитель цепочки команд
+    /// Создает нового строителя
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            mode: ChainExecutionMode::Sequential,
+            execution_mode: ChainExecutionMode::Sequential,
             logger: None,
             rollback_on_error: true,
         }
@@ -30,12 +31,12 @@ impl ChainBuilder {
 
     /// Устанавливает режим выполнения
     pub fn execution_mode(mut self, mode: ChainExecutionMode) -> Self {
-        self.mode = mode;
+        self.execution_mode = mode;
         self
     }
 
     /// Устанавливает логгер
-    pub fn logger(mut self, logger: Box<dyn Logger>) -> Self {
+    pub fn logger(mut self, logger: Arc<Box<dyn Logger>>) -> Self {
         self.logger = Some(logger);
         self
     }
@@ -48,17 +49,12 @@ impl ChainBuilder {
 
     /// Строит цепочку команд
     pub fn build(self) -> CommandChain {
-        let mut chain = CommandChain::new(&self.name);
-
-        chain
-            .with_execution_mode(self.mode)
-            .with_rollback_on_error(self.rollback_on_error);
-
-        if let Some(logger) = self.logger {
-            chain.with_logger(logger);
-        }
-
-        chain
+        CommandChain::new(
+            &self.name,
+            self.execution_mode,
+            self.logger,
+            self.rollback_on_error,
+        )
     }
 
     /// Строит цепочку команд с набором начальных команд
@@ -77,15 +73,23 @@ impl ChainBuilder {
 }
 
 /// Создает последовательную цепочку команд
-pub fn sequential_chain(name: &str) -> CommandChain {
-    let mut chain = CommandChain::new(name);
-    chain.with_execution_mode(ChainExecutionMode::Sequential);
+pub fn build_sequential_chain(name: &str, commands: Vec<Box<dyn Command>>) -> CommandChain {
+    let mut chain = CommandChain::new(name, ChainExecutionMode::Sequential, None, true);
+
+    for command in commands {
+        chain.add_boxed_command(command);
+    }
+
     chain
 }
 
 /// Создает параллельную цепочку команд
-pub fn parallel_chain(name: &str) -> CommandChain {
-    let mut chain = CommandChain::new(name);
-    chain.with_execution_mode(ChainExecutionMode::Parallel);
+pub fn build_parallel_chain(name: &str, commands: Vec<Box<dyn Command>>) -> CommandChain {
+    let mut chain = CommandChain::new(name, ChainExecutionMode::Parallel, None, true);
+
+    for command in commands {
+        chain.add_boxed_command(command);
+    }
+
     chain
 }

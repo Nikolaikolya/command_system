@@ -1,4 +1,5 @@
 pub mod composite_command;
+pub mod executor;
 pub mod shell_command;
 pub mod traits;
 

@@ -1,14 +1,15 @@
 use std::fmt;
+use std::sync::Arc;
 
+use super::Visitor;
+use crate::command::traits::CommandExecution;
 use crate::command::{CompositeCommand, ShellCommand};
 use crate::logging::{LogLevel, Logger};
-use crate::visitor::Visitor;
-use crate::CommandExecution;
 
 /// Структура для логирования команд
 pub struct LogVisitor<'a> {
     /// Логгер для записи событий
-    logger: &'a Box<dyn Logger>,
+    logger: &'a Arc<Box<dyn Logger>>,
 
     /// Уровень логирования
     level: LogLevel,
@@ -16,7 +17,7 @@ pub struct LogVisitor<'a> {
 
 impl<'a> LogVisitor<'a> {
     /// Создает новый экземпляр LogVisitor
-    pub fn new(logger: &'a Box<dyn Logger>, level: LogLevel) -> Self {
+    pub fn new(logger: &'a Arc<Box<dyn Logger>>, level: LogLevel) -> Self {
         Self { logger, level }
     }
 
@@ -26,7 +27,7 @@ impl<'a> LogVisitor<'a> {
     }
 
     /// Устанавливает логгер
-    pub fn set_logger(&mut self, logger: &'a Box<dyn Logger>) {
+    pub fn set_logger(&mut self, logger: &'a Arc<Box<dyn Logger>>) {
         self.logger = logger;
     }
 }
@@ -34,20 +35,29 @@ impl<'a> LogVisitor<'a> {
 impl<'a> Visitor for LogVisitor<'a> {
     fn visit_shell_command(&mut self, command: &ShellCommand) {
         let message = format!("Команда: {}", command.name());
-        self.logger.log(self.level, &message);
+        match self.level {
+            LogLevel::Debug => self.logger.debug(&message),
+            LogLevel::Info => self.logger.info(&message),
+            LogLevel::Warning => self.logger.warning(&message),
+            LogLevel::Error => self.logger.error(&message),
+            LogLevel::Critical => self.logger.error(&message),
+        }
     }
 
     fn visit_composite_command(&mut self, command: &CompositeCommand) {
         let message = format!(
-            "Составная команда: {} (режим: {})",
+            "Составная команда '{}' с режимом выполнения {:?}",
             command.name(),
-            match command.execution_mode() {
-                crate::command::ExecutionMode::Sequential => "последовательный",
-                crate::command::ExecutionMode::Parallel => "параллельный",
-            }
+            command.execution_mode()
         );
 
-        self.logger.log(self.level, &message);
+        match self.level {
+            LogLevel::Debug => self.logger.debug(&message),
+            LogLevel::Info => self.logger.info(&message),
+            LogLevel::Warning => self.logger.warning(&message),
+            LogLevel::Error => self.logger.error(&message),
+            LogLevel::Critical => self.logger.error(&message),
+        }
     }
 }
 
