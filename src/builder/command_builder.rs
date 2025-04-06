@@ -76,11 +76,6 @@ impl CommandBuilder {
 
     /// Устанавливает файл с переменными
     pub fn variables_file(mut self, file_path: &str) -> Self {
-        println!(
-            "1111111111111111 Устанавливаем файл с переменными: {}",
-            file_path
-        );
-
         self.variables_file = Some(file_path.to_string());
         self
     }

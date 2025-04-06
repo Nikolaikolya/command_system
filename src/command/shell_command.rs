@@ -164,7 +164,15 @@ impl ShellCommand {
 
         // Загружаем переменные из файла, если указан
         if let Some(file_path) = &self.variables_file {
+            println!(
+                "1111111111111111 Загружаем переменные из файла: {}",
+                file_path
+            );
             file_vars = Self::load_variables_from_file(file_path).await?;
+            println!(
+                "2222222222222222 Загружены переменные из файла: {:?}",
+                file_vars
+            );
         }
 
         // Обрабатываем переменные из файла {#var}
