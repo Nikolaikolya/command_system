@@ -133,3 +133,107 @@ pub async fn parallel_commands_example() {
         }
     }
 }
+
+/// Пример использования интерактивного ввода и подстановки переменных
+pub async fn interactive_variables_example() {
+    // Пример с интерактивным вводом
+    let command = CommandBuilder::new(
+        "greeting",
+        "echo 'Привет, {name}! Добро пожаловать в {system}'",
+    )
+    .build();
+
+    // При выполнении запросит значения для {name} и {system}
+    let result = command.execute().await.unwrap();
+    println!(
+        "Результат команды с интерактивным вводом: {}",
+        result.output
+    );
+
+    // Пример с использованием переменных окружения
+    std::env::set_var("USER_NAME", "John");
+    std::env::set_var("SYS_NAME", "Command System");
+
+    let command = CommandBuilder::new(
+        "env_greeting",
+        "echo 'Привет, {$USER_NAME}! Добро пожаловать в {$SYS_NAME}'",
+    )
+    .build();
+
+    // Использует переменные окружения USER_NAME и SYS_NAME
+    let result = command.execute().await.unwrap();
+    println!(
+        "Результат команды с переменными окружения: {}",
+        result.output
+    );
+
+    // Пример с использованием файла с переменными
+    let file_path = "variables.json";
+    let file_content = r#"
+    {
+        "USER_NAME": "Alice",
+        "SYS_NAME": "Variable System"
+    }
+    "#;
+
+    // Создаем временный файл с переменными
+    use tokio::fs::File;
+    use tokio::io::AsyncWriteExt;
+    let mut file = File::create(file_path).await.unwrap();
+    file.write_all(file_content.as_bytes()).await.unwrap();
+
+    let command = CommandBuilder::new(
+        "file_greeting",
+        "echo 'Привет, {#USER_NAME}! Добро пожаловать в {#SYS_NAME}'",
+    )
+    .variables_file(file_path)
+    .build();
+
+    // Использует переменные из файла variables.json
+    let result = command.execute().await.unwrap();
+    println!(
+        "Результат команды с переменными из файла: {}",
+        result.output
+    );
+
+    // Удаляем временный файл
+    tokio::fs::remove_file(file_path).await.unwrap();
+
+    // Пример смешанного использования
+    let command = CommandBuilder::new(
+        "mixed_greeting",
+        "echo 'Интерактивно: {interactive}, из окружения: {$USER_NAME}, из файла: {#SYS_NAME}'",
+    )
+    .variables_file(file_path)
+    .build();
+
+    // Переменная {interactive} будет запрошена интерактивно,
+    // {$USER_NAME} будет взята из окружения,
+    // для {#SYS_NAME} сначала будет попытка взять из файла, но так как файл уже удален,
+    // то значение будет запрошено интерактивно
+    let result = match command.execute().await {
+        Ok(r) => {
+            println!("Результат смешанной команды: {}", r.output);
+        }
+        Err(e) => {
+            println!("Ошибка выполнения смешанной команды: {}", e);
+        }
+    };
+}
+
+/// Пример выполнения команд в Windows
+pub async fn windows_command_example() {
+    // Команда для Windows
+    let command = CommandBuilder::new("windows_cmd", "dir").build();
+
+    // При выполнении в Windows покажет содержимое текущей директории
+    let result = command.execute().await.unwrap();
+    println!("Результат команды dir в Windows: {}", result.success);
+
+    // Команда с переменными для Windows
+    let command = CommandBuilder::new("windows_echo", "echo Привет, {name}! Это Windows!").build();
+
+    // При выполнении запросит значение для {name}
+    let result = command.execute().await.unwrap();
+    println!("Результат команды echo в Windows: {}", result.output);
+}

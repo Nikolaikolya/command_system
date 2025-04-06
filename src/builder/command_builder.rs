@@ -24,6 +24,9 @@ pub struct CommandBuilder {
 
     /// Таймаут выполнения команды в секундах
     timeout_seconds: Option<u64>,
+
+    /// Путь к файлу с переменными
+    variables_file: Option<String>,
 }
 
 impl CommandBuilder {
@@ -37,6 +40,7 @@ impl CommandBuilder {
             mode: ExecutionMode::Sequential,
             rollback_command: None,
             timeout_seconds: None,
+            variables_file: None,
         }
     }
 
@@ -70,6 +74,12 @@ impl CommandBuilder {
         self
     }
 
+    /// Устанавливает файл с переменными
+    pub fn variables_file(mut self, file_path: &str) -> Self {
+        self.variables_file = Some(file_path.to_string());
+        self
+    }
+
     /// Строит команду
     pub fn build(self) -> ShellCommand {
         let mut command =
@@ -91,6 +101,10 @@ impl CommandBuilder {
             command = command.with_timeout(timeout);
         }
 
+        if let Some(vars_file) = self.variables_file {
+            command = command.with_variables_file(&vars_file);
+        }
+
         command
     }
 }
@@ -108,4 +122,9 @@ pub fn command_with_rollback(name: &str, command_str: &str, rollback_str: &str) 
 /// Создает команду для параллельного выполнения
 pub fn parallel_command(name: &str, command_str: &str) -> ShellCommand {
     ShellCommand::new(name, command_str).with_execution_mode(ExecutionMode::Parallel)
+}
+
+/// Создает команду с файлом переменных
+pub fn command_with_variables(name: &str, command_str: &str, vars_file: &str) -> ShellCommand {
+    ShellCommand::new(name, command_str).with_variables_file(vars_file)
 }

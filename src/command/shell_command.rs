@@ -1,13 +1,28 @@
 use async_trait::async_trait;
+use lazy_static::lazy_static;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use shlex::split;
 use std::collections::HashMap;
+use std::env;
+use std::io::{self as stdio, BufRead};
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
+use tokio::io::{self, AsyncWriteExt};
 use tokio::process::Command as TokioCommand;
 
 use crate::command::traits::{
     Command, CommandError, CommandExecution, CommandResult, ExecutionMode,
 };
 use crate::visitor::Visitor;
+
+lazy_static! {
+    static ref VAR_PATTERN: Regex = Regex::new(r"\{([^{}]+)\}").unwrap();
+    static ref ENV_VAR_PATTERN: Regex = Regex::new(r"\{\$([^{}]+)\}").unwrap();
+    static ref FILE_VAR_PATTERN: Regex = Regex::new(r"\{#([^{}]+)\}").unwrap();
+    static ref INTERACTIVE_VAR_PATTERN: Regex = Regex::new(r"\{([^$#{}][^{}]*)\}").unwrap();
+}
 
 /// Структура для выполнения команд в оболочке
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +50,9 @@ pub struct ShellCommand {
 
     /// Таймаут выполнения команды в секундах
     timeout_seconds: Option<u64>,
+
+    /// Путь к файлу с переменными
+    variables_file: Option<String>,
 }
 
 impl ShellCommand {
@@ -49,6 +67,7 @@ impl ShellCommand {
             supports_rollback: false,
             rollback_command: None,
             timeout_seconds: None,
+            variables_file: None,
         }
     }
 
@@ -83,14 +102,122 @@ impl ShellCommand {
         self
     }
 
+    /// Устанавливает файл с переменными
+    pub fn with_variables_file(mut self, file_path: &str) -> Self {
+        self.variables_file = Some(file_path.to_string());
+        self
+    }
+
+    /// Интерактивный ввод значения переменной
+    async fn prompt_for_variable(var_name: &str) -> Result<String, CommandError> {
+        let mut stdout = io::stdout();
+        stdout
+            .write_all(format!("Введите значение для {}: ", var_name).as_bytes())
+            .await
+            .map_err(|e| CommandError::IoError(e))?;
+        stdout.flush().await.map_err(|e| CommandError::IoError(e))?;
+
+        let mut buffer = String::new();
+        stdio::stdin()
+            .lock()
+            .read_line(&mut buffer)
+            .map_err(|e| CommandError::IoError(e))?;
+
+        Ok(buffer.trim().to_string())
+    }
+
+    /// Загружает переменные из файла
+    async fn load_variables_from_file(
+        file_path: &str,
+    ) -> Result<HashMap<String, String>, CommandError> {
+        let mut file = File::open(file_path).await.map_err(|e| {
+            CommandError::ExecutionError(format!("Не удалось открыть файл с переменными: {}", e))
+        })?;
+
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).await.map_err(|e| {
+            CommandError::ExecutionError(format!("Не удалось прочитать файл с переменными: {}", e))
+        })?;
+
+        let json: Value = serde_json::from_str(&contents).map_err(|e| {
+            CommandError::ExecutionError(format!("Не удалось разобрать JSON: {}", e))
+        })?;
+
+        let mut vars = HashMap::new();
+        if let Value::Object(map) = json {
+            for (key, value) in map {
+                if let Value::String(val) = value {
+                    vars.insert(key, val);
+                } else {
+                    vars.insert(key, value.to_string());
+                }
+            }
+        }
+
+        Ok(vars)
+    }
+
+    /// Заменяет переменные в командной строке
+    async fn process_variables(&self, cmd: &str) -> Result<String, CommandError> {
+        let mut processed_cmd = cmd.to_string();
+        let mut file_vars = HashMap::new();
+
+        // Загружаем переменные из файла, если указан
+        if let Some(file_path) = &self.variables_file {
+            file_vars = Self::load_variables_from_file(file_path).await?;
+        }
+
+        // Обрабатываем переменные из файла {#var}
+        for cap in FILE_VAR_PATTERN.captures_iter(&cmd.to_string()) {
+            let var_name = &cap[1];
+            if let Some(_) = &self.variables_file {
+                if let Some(value) = file_vars.get(var_name) {
+                    processed_cmd = processed_cmd.replace(&cap[0], value);
+                } else {
+                    // Если переменной нет в файле, запрашиваем интерактивно
+                    let value = Self::prompt_for_variable(var_name).await?;
+                    processed_cmd = processed_cmd.replace(&cap[0], &value);
+                }
+            } else {
+                // Файл не указан, запрашиваем интерактивно
+                let value = Self::prompt_for_variable(var_name).await?;
+                processed_cmd = processed_cmd.replace(&cap[0], &value);
+            }
+        }
+
+        // Обрабатываем переменные окружения {$var}
+        for cap in ENV_VAR_PATTERN.captures_iter(&processed_cmd.clone()) {
+            let var_name = &cap[1];
+            if let Ok(value) = env::var(var_name) {
+                processed_cmd = processed_cmd.replace(&cap[0], &value);
+            } else {
+                // Если переменной нет в окружении, запрашиваем интерактивно
+                let value = Self::prompt_for_variable(var_name).await?;
+                processed_cmd = processed_cmd.replace(&cap[0], &value);
+            }
+        }
+
+        // Обрабатываем интерактивные переменные {var}
+        for cap in INTERACTIVE_VAR_PATTERN.captures_iter(&processed_cmd.clone()) {
+            let var_name = &cap[1];
+            let value = Self::prompt_for_variable(var_name).await?;
+            processed_cmd = processed_cmd.replace(&cap[0], &value);
+        }
+
+        Ok(processed_cmd)
+    }
+
     /// Выполняет токио команду с таймаутом
     async fn execute_with_timeout(&self) -> Result<CommandResult, CommandError> {
-        let args = match split(&self.command) {
+        // Обрабатываем переменные в команде
+        let processed_command = self.process_variables(&self.command).await?;
+
+        let args = match split(&processed_command) {
             Some(args) => args,
             None => {
                 return Err(CommandError::ExecutionError(format!(
                     "Не удалось разобрать команду: {}",
-                    self.command
+                    processed_command
                 )))
             }
         };
@@ -101,11 +228,18 @@ impl ShellCommand {
 
         let result = CommandResult::new(&self.name);
 
-        let mut cmd = TokioCommand::new(&args[0]);
+        #[cfg(target_family = "unix")]
+        let program = "sh";
+        #[cfg(target_family = "unix")]
+        let args = ["-c", &processed_command];
 
-        if args.len() > 1 {
-            cmd.args(&args[1..]);
-        }
+        #[cfg(target_family = "windows")]
+        let program = "cmd.exe";
+        #[cfg(target_family = "windows")]
+        let args = ["/C", &processed_command];
+
+        let mut cmd = TokioCommand::new(program);
+        cmd.args(&args);
 
         // Устанавливаем рабочую директорию, если указана
         if let Some(dir) = &self.working_dir {
@@ -182,6 +316,11 @@ impl CommandExecution for ShellCommand {
 
         rollback.env_vars = self.env_vars.clone();
         rollback.mode = self.mode;
+
+        // Передаем файл с переменными в команду отката
+        if let Some(vars_file) = &self.variables_file {
+            rollback.variables_file = Some(vars_file.clone());
+        }
 
         rollback.execute().await
     }
