@@ -143,6 +143,8 @@ impl ShellCommand {
             CommandError::ExecutionError(format!("Не удалось прочитать файл с переменными: {}", e))
         })?;
 
+        println!("5555555555555555 Прочитан файл: {:?}", contents);
+
         let json: Value = serde_json::from_str(&contents).map_err(|e| {
             CommandError::ExecutionError(format!("Не удалось разобрать JSON: {}", e))
         })?;
