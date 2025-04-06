@@ -149,6 +149,8 @@ impl ShellCommand {
             CommandError::ExecutionError(format!("Не удалось разобрать JSON: {}", e))
         })?;
 
+        println!("6666666666666666 Разобран JSON: {:?}", json);
+
         let mut vars = HashMap::new();
         if let Value::Object(map) = json {
             for (key, value) in map {
