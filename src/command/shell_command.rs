@@ -134,6 +134,10 @@ impl ShellCommand {
             CommandError::ExecutionError(format!("Не удалось открыть файл с переменными: {}", e))
         })?;
 
+        println!("3333333333333333 Открыт файл: {:?}", file);
+
+        println!("4444444444444444 Загружаем файл: {:?}", file);
+
         let mut contents = String::new();
         file.read_to_string(&mut contents).await.map_err(|e| {
             CommandError::ExecutionError(format!("Не удалось прочитать файл с переменными: {}", e))
