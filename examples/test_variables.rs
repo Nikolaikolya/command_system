@@ -53,9 +53,9 @@ async fn main() {
     println!("\n=== Переменные из файла ===");
     let command = CommandBuilder::new(
         "file_test",
-        "echo 'Привет, {#FILE_NAME}! Добро пожаловать в {#FILE_SYSTEM}'",
+        "echo 'Привет, {FILE_NAME}! Добро пожаловать в {#FILE_SYSTEM}'",
     )
-    .variables_file("test_vars.json")
+    .variables_file("test.json")
     .build();
 
     match command.execute().await {
