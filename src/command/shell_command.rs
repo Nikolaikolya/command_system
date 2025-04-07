@@ -134,22 +134,14 @@ impl ShellCommand {
             CommandError::ExecutionError(format!("Не удалось открыть файл с переменными: {}", e))
         })?;
 
-        println!("3333333333333333 Открыт файл: {:?}", file);
-
-        println!("4444444444444444 Загружаем файл: {:?}", file);
-
         let mut contents = String::new();
         file.read_to_string(&mut contents).await.map_err(|e| {
             CommandError::ExecutionError(format!("Не удалось прочитать файл с переменными: {}", e))
         })?;
 
-        println!("5555555555555555 Прочитан файл: {:?}", contents);
-
         let json: Value = serde_json::from_str(&contents).map_err(|e| {
             CommandError::ExecutionError(format!("Не удалось разобрать JSON: {}", e))
         })?;
-
-        println!("6666666666666666 Разобран JSON: {:?}", json);
 
         let mut vars = HashMap::new();
         if let Value::Object(map) = json {
@@ -172,15 +164,7 @@ impl ShellCommand {
 
         // Загружаем переменные из файла, если указан
         if let Some(file_path) = &self.variables_file {
-            println!(
-                "1111111111111111 Загружаем переменные из файла: {}",
-                file_path
-            );
             file_vars = Self::load_variables_from_file(file_path).await?;
-            println!(
-                "2222222222222222 Загружены переменные из файла: {:?}",
-                file_vars
-            );
         }
 
         // Обрабатываем переменные из файла {#var}
